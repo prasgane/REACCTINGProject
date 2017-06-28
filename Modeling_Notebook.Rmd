@@ -1,0 +1,229 @@
+---
+output:
+  word_document: default
+  html_document: default
+---
+## ---
+## title: "Lascar Calibration and Modelling"
+## author: "Prashant Ganesh and Yolanda Hagar"
+## date: "March 17 2017"
+## ---
+
+Notebook is made more organized with a more organized structure.
+Will look into 3 models:
+**Model1** : log(Ref) ~ log(lascar) + cummulative + as.factor(lascar number)
+**Model2** : Indicator ~ log(reference) + cummulative + as.factor(lascar number)
+**Model3** : log(lascar) ~ log(ref) + cummulative + as.factor(lascar number)
+
+For the above 3 models the following techniques will be used:
+1) Linear Model
+2) Linear Mixed Effects Models (Random Effects Model)
+3) General Additive Mixed Model
+4) General Additive Model
+5) General Linear Model
+ 
+Setting the working directory and loading the file containing the compiled data from MATLAB.
+
+```{r, echo=FALSE}
+setwd('~LocalDir...')
+library(mixtools)
+library(lme4)
+require(mgcv)
+library(glm2)
+library(HI)
+
+d <- read.csv("~/CompiledData.csv") #imports the datafile
+d$log.LascarCO = log(d$LascarCO+0.001)
+d$log.ReferenceCO = log(d$ReferenceCO + 0.001)
+d$CummulativeExposure = d$CummulativeExposure/10000
+d$indicator = 0
+d$indicator[d$ReferenceCO>0] = 1
+LascarOn = as.data.frame(d[which(d$LascarCO>0) ,])
+d$sno = 1:nrow(d)
+
+
+
+```
+
+# I) First set of models:
+## 1 
+###Simple Linear Model for *Model1*
+```{r}
+SimpleModel1 = lm(log.ReferenceCO ~ as.factor(LascarNumber) + log.LascarCO + CummulativeExposure, data = LascarOn) 
+summary(SimpleModel1)
+```
+
+### General Linear Model for *Model2*
+```{r}
+
+GLMModel2 = glm2(indicator ~ CummulativeExposure  + log.LascarCO + as.factor(LascarNumber) , data = d, family = binomial())
+summary(GLMModel2)
+
+```
+
+##2)
+###Random Effects Models for *Model1*
+```{r}
+RandomEffectsModel1 = lmer(log.ReferenceCO ~ log.LascarCO+ CummulativeExposure + (1|LascarNumber),data = LascarOn)
+summary(RandomEffectsModel1)
+
+```
+###Generalized Linear Mixed Models for *Model2*
+
+Using the regular dataset throws the following error: *Some predictor variables are on very different scales: consider rescaling *
+http://stackoverflow.com/questions/26904580/error-messages-when-running-glmer-in-r suggests that the datascale be rescaled using lapply()
+
+```{r}
+
+GLMRadnom = glmer(indicator ~ CummulativeExposure2  + log.ReferenceCO + (1|LascarNumber) , data = d, family = binomial())
+summary(GLMRadnom)
+
+```
+
+## 3) 
+### Generalized Additive Mixed Model for *Model1*
+Error saying cannot allocate 32 GB of data
+So using bam() General Additive Model for Large Datasets. But dont think it takes Random Effects into consideration
+https://stat.ethz.ch/R-manual/R-devel/library/mgcv/html/bam.html
+```{r}
+library(gamm4)
+GAMMModel1 = gamm(log.ReferenceCO ~ s(log.LascarCO) + CummulativeExposure, family = gaussian(link=identity), data = LascarOn,random = list(LascarNumber=~1), correlation = corAR1(0.5, form = ~ 1))
+summary(GAMMModel1)
+#list(LascarNumber=~1)
+
+```
+
+##4) 
+### GAMM Model for *Model1* with as.factor(lascar number)
+
+```{r}
+GAMModel1 = gam(log.ReferenceCO ~ as.factor(LascarNumber) + s(log.LascarCO) + CummulativeExposure, data = d, family = gaussian(link=identity))
+
+summary(GAMModel1)
+```
+
+# II)
+## 1
+### Linear Model for *Model3*
+```{r}
+
+SimpleModel2 = lm(log.LascarCO ~ log.ReferenceCO + CummulativeExposure+ as.factor(LascarNumber)  , data = d) 
+summary(SimpleModel2)
+
+```
+
+##2) 
+### Random Effects Model for *Model3*
+```{r}
+RandomEffectsModel3 = lmer(log.LascarCO ~ log.ReferenceCO + CummulativeExposure + (1|LascarNumber),data = d)
+summary(RandomEffectsModel3)
+
+```
+
+##3) 
+### Generalized Additive *Model3*
+
+```{r}
+GAMModel3 = gam( log.LascarCO ~ as.factor(LascarNumber) + s(log.ReferenceCO) + CummulativeExposure, data = d, family = gaussian(link=identity))
+
+summary(GAMModel3)
+```
+
+##4) 
+### Generalized Additive Mixed Models for *Model3*
+```{r}
+GAMMModel3 = gamm4(log.ReferenceCO ~ s(log.LascarCO) + CummulativeExposure, family = gaussian(link=identity),random =~ (1|LascarNumber) , data = LascarOn)
+summary(GAMMModel3)
+
+```
+
+```{r}
+
+betainit = rep(0,4)
+p = 0.5
+sigma = 3.275^2
+alpha.p = 2
+beta.p = 2
+n.on = nrow(LascarOn)
+n.off = nrow(d) - n.on
+
+nsamples = 100000
+
+#sampledbetas = matrix(0,nrow =as.numeric(nsamples),ncol = 4)
+#sampledp =  matrix(0,nrow =nsamples,ncol = 1)
+#sampledsigma =  matrix(0,nrow =as.numeric(nsamples),ncol = 1)
+sampledbetas = betainit
+sampledp = p
+sampledsigma = sigma 
+
+c = 10
+dd = 10
+
+y = d$LascarCO
+x = matrix( c(rep(1,nrow(d)), d$CummulativeExposure , d$ReferenceCO , d$LascarNumber),nrow = nrow(d), ncol = 4) # Have to include lascar Number as factor! 
+theta = 0
+sigmabeta = 10
+
+tempbeta = betainit
+
+
+betajposterior = function(x,y,xi,ximinus,betaiminus,sigma,theta,sigmabeta){
+  betai = x
+ #log.betai.posteriors = - sum((y - xi*betai - ximinus%*%betaiminus)^2) / (2 * sigma^2) - ((betai - theta)^2)/(2*sigmabeta^2)
+  betavector = c(betai, betaiminus)
+  Xbeta = cbind(xi, ximinus)%*%matrix(betavector, ncol = 1)
+ log.betai.posteriors = - sum((y - Xbeta)^2)
+  return(log.betai.posteriors)
+}
+
+
+#betaposs = seq(-10, 10, by = .5)
+#ii = 2 
+#jj = 1
+#posterior = NULL
+#for(ctr in 1:length(betaposs)){
+#posterior = c(posterior, betajposterior(betai = betaposs[ctr], y = y, xi = x[,jj], betaiminus = sampledbetas[ii-1,-c(jj)], ximinus = x[,-c(jj)],sigma = sampledsigma[ii-1],theta = theta, #sigmabeta = sigmabeta))
+#}
+
+#summary(posterior)
+#plot(betaposs, posterior, type = 'l')
+
+
+for(ii in 2:nsamples){
+  sampledp = c(sampledp,rbeta(1,n.on+alpha.p,n.off + beta.p))
+  for(jj in 2:4){
+    tempbeta[jj] = arms(sampledbetas[ii-1,jj],betajposterior,function(x) (x>-10)*(x<10), 1, betai = sampledbeta[ii-1,(jj)],y = y, xi = x[,jj] ,ximinus = x[,-c(jj)],
+                              betaiminus = sampledbetas[ii-1,-c(jj)],sigma = sampledsigma[ii-1],theta = theta, sigmabeta = sigmabeta)  
+  }
+  sampledbetas = rbind(sampledbetas,tempbeta)
+  sampledsigma = c(sampledsigma, rinvgamm(1,c+n/2,dd+0.5*sum(y - x %*% sampledbeta[ii,])))
+}
+tempvar = NULL
+betaint = c(-10,0,10)
+for(ii in 1:3)
+{
+  
+    betas = rep(betaint[ii],4)
+    print(- sum((y - x%*%betas)^2))
+  
+}
+
+
+sampledbetas
+arms(sampledbetas[1,jj],betajposterior, function(x) (x>-10)*(x<10), 1, y = y/10^5, xi = x[,jj]/10^5 ,ximinus = x[,-c(jj)]/10^5,
+                              betaiminus = sampledbetas[1,-c(jj)],sigma = sampledsigma[1],theta = theta, sigmabeta = sigmabeta) 
+.Call(arms, c(-10, 10), f = function(x) betajposterior(x, y = y, xi = x[,jj] ,ximinus = x[,-c(jj)],
+                              betaiminus = sampledbetas[ii-1,-c(jj)],sigma = sampledsigma[ii-1],theta = theta, sigmabeta = sigmabeta), as.integer(1), new.env())
+
+
+
+
+
+ln = 46
+plot(d$LascarTime[which(d$LascarNumber == ln)],d$LascarCO[which(d$LascarNumber == ln)],type = 'l',col = 'red',lwd = 3,xlab = 'Epoch Time in Seconds',
+     ylab = 'CO in ppm')
+lines(d$LascarTime[which(d$LascarNumber == ln)],d$ReferenceCO[which(d$LascarNumber == ln)],type = 'l',col = 'green',lwd =3)
+legend(x = "topright",inset = 0, legend = c('Measured CO' , 'Reference CO'),fill = c('red','green'),cex=1.3,pt.cex = 1)
+title(main ='Line Plot of Measured CO vs Reference CO')
+
+```
