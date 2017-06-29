@@ -8,7 +8,7 @@
     </head>
     <body>
         
-    <div id="linechart"><svg style="height:450px;"></svg></div>
+    <div id="linechart"><svg style="width:750px;height:750px;"></svg></div>
 
 
     <script>
@@ -28,6 +28,12 @@
 
 
                 chart.yAxis
+                .axisLabel('Probability of On/Off');
+            chart.xAxis
+                .axisLabel('Sampled Point');
+            chart.xAxis
+                .tickFormat(d3.format(',r'));
+            chart.yAxis
                 .tickFormat(d3.format(',.02f'));
 
 
@@ -44,7 +50,8 @@
             d3.select('#linechart svg')
             .datum(datum)
             .transition().duration(500)
-            .attr('height', 450)
+            .attr('width', 750)
+            .attr('height', 750)
             .call(chart);
 
 
