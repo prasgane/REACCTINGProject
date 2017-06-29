@@ -8,7 +8,7 @@
     </head>
     <body>
         
-    <div id="linechart"><svg style="width:750px;height:750px;"></svg></div>
+    <div id="linechart"><svg style="width:1100px;height:750px;"></svg></div>
 
 
     <script>
@@ -21,7 +21,7 @@
         nv.addGraph(function() {
         var chart = nv.models.lineChart();
 
-        chart.margin({top: 30, right: 60, bottom: 20, left: 60});
+        chart.margin({top: 60, right: 60, bottom: 60, left: 60});
 
         var datum = data_linechart;
 
@@ -50,7 +50,7 @@
             d3.select('#linechart svg')
             .datum(datum)
             .transition().duration(500)
-            .attr('width', 750)
+            .attr('width', 1100)
             .attr('height', 750)
             .call(chart);
 

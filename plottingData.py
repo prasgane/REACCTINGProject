@@ -21,7 +21,7 @@ total_rows = len(parameterlist)
 output_file = open('LineChart.html','w')
 
 type = "lineChart"
-chart = lineChart(name=type,x_is_date=False, width = 750,height = 750)
+chart = lineChart(name=type,x_is_date=False, width = 1100,height = 750, margin_bottom=60, margin_top=60)
 
 xdata = list(range(0, total_rows))
 
@@ -41,5 +41,5 @@ output_file.write(chart.htmlcontent.replace("Xa","xA").replace("Ya","yA"))
 output_file.close()
 
 
-ax = sns.pointplot(x = xdata,y = "p",data = parameterlist)
-sns.plt.show()
+#ax = sns.pointplot(x = xdata,y = "p",data = parameterlist)
+#sns.plt.show()
